@@ -2,13 +2,18 @@ package main
 
 import (
 	"database/sql"
-	"fmt"
+	"encoding/json"
 	"log"
 	"net/http"
 	"os"
 
 	_ "github.com/lib/pq"
 )
+
+type User struct {
+	ID    int    `json:"id"`
+	Login string `json:"login"`
+}
 
 func main() {
 	db, err := sql.Open("postgres", os.Getenv("DB_URL"))
@@ -21,25 +26,30 @@ func main() {
 		log.Fatal(err)
 	}
 
-	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
-		rows, err := db.Query("SELECT login FROM users")
+	http.HandleFunc("/api/users", func(w http.ResponseWriter, r *http.Request) {
+		
+		w.Header().Set("Content-Type", "application/json")
+
+		rows, err := db.Query("SELECT id, login FROM users")
 		if err != nil {
-			http.Error(w, "Database error", 500)
+			http.Error(w, "Database error", http.StatusInternalServerError)
 			return
 		}
 		defer rows.Close()
 
-		fmt.Fprintf(w, "<html><body><h1>Users</h1><ul>")
-		for rows.Next() {
-    		var login string
-    		if err := rows.Scan(&login); err != nil {
-        		http.Error(w, err.Error(), 500)
-        		return
-    		}
-    	fmt.Fprintf(w, "<li>%s</li>", login)
-}
+		users := []User{}
 
-		fmt.Fprintf(w, "</ul></body></html>")
+		for rows.Next() {
+			var u User
+			if err := rows.Scan(&u.ID, &u.Login); err != nil {
+				http.Error(w, err.Error(), http.StatusInternalServerError)
+				return
+			}
+			users = append(users, u)
+		}
+
+		json.NewEncoder(w).Encode(users)
+		log.Println("Got request from:", r.RemoteAddr)
 	})
 
 	log.Println("Server running on :8080")

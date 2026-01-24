@@ -28,4 +28,4 @@ clean:
 	rm -rf data/
 	@echo "Postgres data wiped"
 
-rebuild: clean build up
+rebuild: clean down build up
